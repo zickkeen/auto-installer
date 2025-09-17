@@ -1,8 +1,9 @@
+---
 name: Update Contributors
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   schedule:
     # Jalankan setiap hari pukul 00:00 UTC
     - cron: '0 0 * * *'
@@ -12,26 +13,60 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Update Contributors
-      uses: akhilmhdh/contributors-readme-action@v2.3.10
-      with:
-        readme_path: README.md
-        collaborators: all
-        commit_message: 'docs: update contributors list'
-        collaborators_user: zickkeen
+      - name: Update Contributors
+        run: |
+          # Install jq untuk parsing JSON
+          sudo apt-get update && sudo apt-get install -y jq
 
-    - name: Commit changes
-      run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git add README.md
-        git diff --quiet && git diff --staged --quiet || git commit -m "Update contributors list"
+          # Fetch contributors dari GitHub API
+          TOKEN="${{ secrets.GITHUB_TOKEN }}"
+          REPO="${{ github.repository }}"
+          CONTRIBUTORS=$(curl -s -H "Authorization: token $TOKEN" \
+            "https://api.github.com/repos/$REPO/contributors")
 
-    - name: Push changes
-      if: success()
-      run: git push
+          # Generate markdown untuk contributors
+          CONTRIBUTORS_MD=""
+          for contributor in $(echo "$CONTRIBUTORS" | jq -r '.[] | @base64'); do
+            _jq() {
+              echo ${contributor} | base64 --decode | jq -r ${1}
+            }
+
+            LOGIN=$(_jq '.login')
+            AVATAR_URL=$(_jq '.avatar_url')
+            HTML_URL=$(_jq '.html_url')
+            CONTRIBUTIONS=$(_jq '.contributions')
+
+            LINE="- [![${LOGIN}](${AVATAR_URL}&s=50)](${HTML_URL})"
+            LINE="${LINE} **${LOGIN}** - ${CONTRIBUTIONS} contributions"
+            CONTRIBUTORS_MD="${CONTRIBUTORS_MD}\n${LINE}"
+          done
+
+          # Update README.md jika ada contributors
+          if [ -n "$CONTRIBUTORS_MD" ]; then
+            # Backup README
+            cp README.md README.md.backup
+
+            # Ganti bagian antara marker
+            awk '
+            /<!-- CONTRIBUTORS:START -->/ { print; in_block=1; next }
+            /<!-- CONTRIBUTORS:END -->/ {
+              print "'"$CONTRIBUTORS_MD"'"
+              print; in_block=0; next
+            }
+            !in_block { print }
+            ' README.md > README.md.tmp && mv README.md.tmp README.md
+
+            # Commit jika ada perubahan
+            if ! git diff --quiet README.md; then
+              git config --local user.email "action@github.com"
+              git config --local user.name "GitHub Action"
+              git add README.md
+              git commit -m "docs: update contributors list"
+              git push
+            fi
+          fi
