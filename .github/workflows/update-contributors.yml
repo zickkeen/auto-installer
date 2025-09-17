@@ -1,0 +1,37 @@
+name: Update Contributors
+
+on:
+  push:
+    branches: [ main ]
+  schedule:
+    # Jalankan setiap hari pukul 00:00 UTC
+    - cron: '0 0 * * *'
+
+jobs:
+  update-contributors:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Update Contributors
+      uses: akhilmhdh/contributors-readme-action@v2.3.10
+      with:
+        readme_path: README.md
+        collaborators: all
+        commit_message: 'docs: update contributors list'
+        collaborators_user: zickkeen
+
+    - name: Commit changes
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add README.md
+        git diff --quiet && git diff --staged --quiet || git commit -m "Update contributors list"
+
+    - name: Push changes
+      if: success()
+      run: git push
