@@ -72,7 +72,7 @@ install_opensips_debian() {
     fi
 
     # Add official OpenSIPS repository with modern APT signing
-    curl -s https://apt.opensips.org/opensips-org.gpg -o /usr/share/keyrings/opensips-org.gpg
+    sudo curl -s https://apt.opensips.org/opensips-org.gpg -o /usr/share/keyrings/opensips-org.gpg
     echo "deb [signed-by=/usr/share/keyrings/opensips-org.gpg] https://apt.opensips.org $DISTRO_CODENAME $OPENSIPS_VERSION-releases" | sudo tee /etc/apt/sources.list.d/opensips.list
 
     sudo apt update
