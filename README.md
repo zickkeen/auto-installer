@@ -14,6 +14,7 @@ lihat [CHANGELOG.md](CHANGELOG.md) untuk mengetahui detail perubahannya [(change
 
 - **Code Server Installer**: Instalasi VS Code Server dengan reverse proxy (Nginx + Certbot atau Cloudflare Tunnel)
 - **PostgreSQL Installer**: Instalasi dan konfigurasi PostgreSQL dengan opsi setup database awal
+- **OpenSIPS Installer**: Instalasi OpenSIPS SIP proxy server dengan konfigurasi best practice
 
 ## 📦 Script yang Tersedia
 
@@ -21,6 +22,7 @@ lihat [CHANGELOG.md](CHANGELOG.md) untuk mengetahui detail perubahannya [(change
 |--------|-----------|------------|
 | `code_server-installer.sh` | Instalasi Code Server dengan reverse proxy | Ubuntu 22.04 |
 | `postgresql-installer.sh` | Instalasi PostgreSQL dengan konfigurasi awal | Debian/Ubuntu, RedHat-based |
+| `opensips-installer.sh` | Instalasi OpenSIPS SIP proxy dengan best practice | Debian/Ubuntu, RedHat-based |
 
 ## 🛠️ Cara Penggunaan
 
@@ -46,6 +48,21 @@ bash postgresql-installer.sh --pg-version 14 --setup-db --db-name mydb --db-user
 
 # Atau download dan jalankan langsung dari GitHub
 curl -fsSL https://raw.githubusercontent.com/zickkeen/auto-installer/main/postgresql-installer.sh | bash -s -- --pg-version 15 --setup-db --db-name mydb --db-user myuser --db-pass mypass
+```
+
+### OpenSIPS
+```bash
+# Instalasi dasar dengan database (lokal)
+bash opensips-installer.sh --db-pass your_password
+
+# Instalasi lengkap dengan web interface (lokal)
+bash opensips-installer.sh --db-pass your_password --sip-domain example.com --with-web
+
+# Instalasi dengan PostgreSQL (lokal)
+bash opensips-installer.sh --db-pass your_password --db-engine postgres --sip-domain sip.example.com
+
+# Atau download dan jalankan langsung dari GitHub
+curl -fsSL https://raw.githubusercontent.com/zickkeen/auto-installer/main/opensips-installer.sh | bash -s -- --db-pass your_password --sip-domain example.com
 ```
 
 Gunakan `--help` pada setiap script untuk panduan lengkap.
