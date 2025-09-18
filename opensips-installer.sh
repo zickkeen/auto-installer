@@ -7,7 +7,7 @@ set -e
 # ======================================================
 
 # --- Default config
-OPENSIPS_VERSION="3.6.1"
+OPENSIPS_VERSION="3.5"
 DB_ENGINE="mysql"
 DB_HOST="localhost"
 DB_PORT="3306"
