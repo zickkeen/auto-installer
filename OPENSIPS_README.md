@@ -10,7 +10,7 @@ This installer provides automated installation of OpenSIPS stable version with b
 
 ## Features
 
-- **Latest LTS Version**: Installs OpenSIPS 3.6.x LTS (latest stable release)
+- **Latest Stable Version**: Installs OpenSIPS 3.5.x (current stable release)
 - **Best Practice Config**: Pre-configured with industry standard settings
 - **Database Integration**: MySQL/MariaDB support with automatic schema setup
 - **Security**: Proper authentication, permissions, and firewall rules

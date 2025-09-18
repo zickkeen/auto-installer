@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **OpenSIPS Installer**: Comprehensive SIP proxy server installation script
-  - OpenSIPS 3.6.x LTS (latest stable) installation from official repositories
+  - OpenSIPS 3.5.x (current stable) installation from official repositories
   - Official OpenSIPS APT/YUM repositories (apt.opensips.org / yum.opensips.org)
   - Best practice configuration with security, performance, and reliability optimizations
   - Database integration (MySQL/MariaDB and PostgreSQL support)
