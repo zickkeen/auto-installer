@@ -7,7 +7,7 @@ set -e
 # ======================================================
 
 # --- Default config
-OPENSIPS_VERSION="3.5"
+OPENSIPS_VERSION="3.6"
 DB_ENGINE="mysql"
 DB_HOST="localhost"
 DB_PORT="3306"
@@ -63,9 +63,17 @@ install_dependencies() {
 install_opensips_debian() {
     echo "=== Installing OpenSIPS $OPENSIPS_VERSION for Debian/Ubuntu ==="
 
-    # Add official OpenSIPS repository
-    wget -O- http://apt.opensips.org/opensips-org.gpg | sudo apt-key add -
-    echo "deb http://apt.opensips.org $OPENSIPS_VERSION main" | sudo tee /etc/apt/sources.list.d/opensips.list
+    # Detect Ubuntu/Debian version for repository
+    if [[ -f /etc/os-release ]]; then
+        . /etc/os-release
+        DISTRO_CODENAME=${VERSION_CODENAME:-$(lsb_release -cs 2>/dev/null || echo "noble")}
+    else
+        DISTRO_CODENAME="noble"  # fallback
+    fi
+
+    # Add official OpenSIPS repository with modern APT signing
+    curl -s https://apt.opensips.org/opensips-org.gpg -o /usr/share/keyrings/opensips-org.gpg
+    echo "deb [signed-by=/usr/share/keyrings/opensips-org.gpg] https://apt.opensips.org $DISTRO_CODENAME $OPENSIPS_VERSION-releases" | sudo tee /etc/apt/sources.list.d/opensips.list
 
     sudo apt update
     sudo apt install -y opensips opensips-mysql-module opensips-postgres-module opensips-unixodbc-module
