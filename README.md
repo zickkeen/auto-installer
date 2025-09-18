@@ -6,6 +6,10 @@ Kumpulan script installer otomatis untuk berbagai aplikasi dan layanan open-sour
 
 **Repository**: [https://github.com/zickkeen/auto-installer](https://github.com/zickkeen/auto-installer)
 
+## 📋 Changelog
+
+lihat [CHANGELOG.md](CHANGELOG.md) untuk mengetahui detail perubahannya [(changes.ue)](https://github.com/zickkeen/auto-installer/blob/main/CHANGELOG.md)
+
 ## 🚀 Fitur
 
 - **Code Server Installer**: Instalasi VS Code Server dengan reverse proxy (Nginx + Certbot atau Cloudflare Tunnel)
@@ -89,7 +93,17 @@ Project ini dikembangkan secara sukarela. Jika Anda merasa terbantu dan ingin me
 - ⭐ **Star** repository ini di GitHub
 - 🍴 **Fork** dan bagikan ke teman-teman
 - 💬 **Berikan feedback** atau laporkan issue
-- 💝 **Donasi** via [GitHub Sponsors](https://github.com/sponsors/your-username) atau [Ko-fi](https://ko-fi.com/your-username)
+- 💝 **Donasi**:
+  - 🐙 [GitHub Sponsors](https://github.com/sponsors/zickkeen)
+  - ☕ [Ko-fi](https://ko-fi.com/zickkeen)
+  - 💰 [PayPal](https://paypal.me/donateZickkeen)
+  - ☕ [Buy Me a Coffee](https://buymeacoffee.com/zickkeen)
+  - 💝 [Sociabuzz](https://sociabuzz.com/zickkeen)
+  - **Cryptocurrency**:
+    - ₿ **Bitcoin**: `bc1q0rxk0v0d7xgr2s3fg346tljkcqys00vnqc397n`
+    - Ξ **Ethereum**: `bc1q0rxk0v0d7xgr2s3fg346tljkcqys00vnqc397n`
+    - 💲 **USDT (Polygon)**: `0x39a7cb7abbd45e242e7fbe3adc4acd946e54f7f3`
+    - 💲 **USDT Blockchain**: `0xa679bfed3bcb01c0eabfc44ed196df0ca9ad9d8d`
 
 Setiap dukungan sangat berarti untuk pengembangan project ini!
 
