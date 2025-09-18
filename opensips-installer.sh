@@ -78,8 +78,8 @@ install_opensips_debian() {
     sudo apt update
     sudo apt install -y opensips opensips-mysql-module opensips-postgres-module opensips-unixodbc-module
 
-    # Install additional modules
-    sudo apt install -y opensips-http-modules opensips-json-modules opensips-xml-modules opensips-tls-modules
+    # Install additional modules (only those available for 3.5)
+    sudo apt install -y opensips-http-modules
 }
 
 # --- Fungsi install OpenSIPS RedHat
