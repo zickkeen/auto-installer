@@ -196,11 +196,23 @@ EOF
   sudo systemctl enable nginx
   sudo nginx -t && sudo systemctl restart nginx
 
-  # Open firewall for RedHat family
+  # Configure firewall
   if [[ "$OS" =~ ^(almalinux|rocky|rhel|centos)$ ]]; then
-      sudo firewall-cmd --permanent --add-service=http
-      sudo firewall-cmd --permanent --add-service=https
-      sudo firewall-cmd --reload
+      if systemctl is-active --quiet firewalld; then
+          sudo firewall-cmd --permanent --add-service=http
+          sudo firewall-cmd --permanent --add-service=https
+          sudo firewall-cmd --reload
+          echo "✅ Firewall configured to allow HTTP/HTTPS"
+      else
+          echo "⚠️  FirewallD tidak aktif. Pastikan port 80/443 dapat diakses dari luar."
+      fi
+  elif [[ "$OS" =~ ^(ubuntu|debian)$ ]]; then
+      if command -v ufw >/dev/null 2>&1 && ufw status | grep -q "Status: active"; then
+          sudo ufw allow 'Nginx Full'
+          echo "✅ UFW configured to allow Nginx"
+      else
+          echo "⚠️  UFW tidak aktif atau tidak terinstall. Pastikan port 80/443 dapat diakses dari luar."
+      fi
   fi
 
   sudo certbot --nginx -d $DOMAIN --non-interactive --agree-tos -m admin@$DOMAIN
@@ -231,11 +243,22 @@ EOF
 elif [[ "$METHOD" == "direct" ]]; then
   echo "=== Setup Direct Access ==="
   
-  # Open firewall for RedHat family
+  # Configure firewall
   if [[ "$OS" =~ ^(almalinux|rocky|rhel|centos)$ ]]; then
-      sudo firewall-cmd --permanent --add-port=8080/tcp
-      sudo firewall-cmd --reload
-      echo "✅ Firewall configured to allow port 8080"
+      if systemctl is-active --quiet firewalld; then
+          sudo firewall-cmd --permanent --add-port=8080/tcp
+          sudo firewall-cmd --reload
+          echo "✅ Firewall configured to allow port 8080"
+      else
+          echo "⚠️  FirewallD tidak aktif. Pastikan port 8080 dapat diakses dari luar jika diperlukan."
+      fi
+  elif [[ "$OS" =~ ^(ubuntu|debian)$ ]]; then
+      if command -v ufw >/dev/null 2>&1 && ufw status | grep -q "Status: active"; then
+          sudo ufw allow 8080/tcp
+          echo "✅ UFW configured to allow port 8080"
+      else
+          echo "⚠️  UFW tidak aktif atau tidak terinstall. Pastikan port 8080 dapat diakses dari luar jika diperlukan."
+      fi
   fi
   
   echo "✅ code-server berjalan di http://$(hostname -I | awk '{print $1}'):8080"
