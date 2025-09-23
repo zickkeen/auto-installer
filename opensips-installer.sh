@@ -122,7 +122,58 @@ FLUSH PRIVILEGES;
 EOF
 
     # Create OpenSIPS tables
-    sudo -u opensips opensipsdbctl create $DB_NAME
+    # Prefer opensipsdbctl if available, otherwise try to import SQL schema manually
+    if command -v opensipsdbctl >/dev/null 2>&1; then
+        sudo -u opensips opensipsdbctl create $DB_NAME
+    else
+        echo "opensipsdbctl: not found, attempting manual DB schema import"
+        # Try to locate an OpenSIPS SQL schema file from installed packages
+        SQL_PATH=""
+        # Check package contents first (dpkg may list files)
+        if command -v dpkg >/dev/null 2>&1; then
+            SQL_PATH=$(dpkg -L opensips 2>/dev/null | grep -E "\.sql$" | head -n1 || true)
+        fi
+        # Fallback: search common locations
+        if [[ -z "$SQL_PATH" ]]; then
+            SQL_PATH=$(find /usr/share -type f -iname "*opensips*schema*.sql" -o -iname "*opensips*create*.sql" 2>/dev/null | head -n1 || true)
+        fi
+
+        if [[ -n "$SQL_PATH" ]]; then
+            echo "Found SQL schema: $SQL_PATH"
+            # Try importing using socket auth (sudo mysql)
+            if sudo mysql -e 'SELECT 1' >/dev/null 2>&1; then
+                echo "Importing schema using sudo mysql (socket auth)"
+                sudo mysql $DB_NAME < "$SQL_PATH"
+            elif sudo mysql -u root -p"$DB_PASS" -e 'SELECT 1' >/dev/null 2>&1; then
+                echo "Importing schema using root password"
+                sudo mysql -u root -p"$DB_PASS" $DB_NAME < "$SQL_PATH"
+            else
+                echo "❌ Cannot connect to MariaDB as root (socket or password). Please import $SQL_PATH into $DB_NAME manually."
+            fi
+        else
+            echo "No local SQL schema found; downloading from upstream"
+            # Download official schema for the installed version
+            SCHEMA_URL="https://raw.githubusercontent.com/OpenSIPS/opensips/$OPENSIPS_VERSION/scripts/mysql/standard-create.sql"
+            TMP_SCHEMA="/tmp/opensips_schema.sql"
+            if wget -q -O "$TMP_SCHEMA" "$SCHEMA_URL"; then
+                echo "Downloaded schema from $SCHEMA_URL"
+                # Import the downloaded schema
+                if sudo mysql -e 'SELECT 1' >/dev/null 2>&1; then
+                    echo "Importing downloaded schema using sudo mysql (socket auth)"
+                    sudo mysql $DB_NAME < "$TMP_SCHEMA"
+                elif sudo mysql -u root -p"$DB_PASS" -e 'SELECT 1' >/dev/null 2>&1; then
+                    echo "Importing downloaded schema using root password"
+                    sudo mysql -u root -p"$DB_PASS" $DB_NAME < "$TMP_SCHEMA"
+                else
+                    echo "❌ Cannot connect to MariaDB as root. Downloaded schema saved to $TMP_SCHEMA; import manually into $DB_NAME."
+                fi
+                # Clean up
+                rm -f "$TMP_SCHEMA"
+            else
+                echo "❌ Failed to download schema from $SCHEMA_URL. Please install opensips tools or provide schema file and import into $DB_NAME."
+            fi
+        fi
+    fi
 }
 
 # --- Fungsi create best practice configuration
@@ -136,15 +187,60 @@ create_config() {
         sudo cp $OPENSIPS_CONFIG $OPENSIPS_CONFIG.backup
     fi
 
-    # Create new configuration with best practices
-    cat << EOF | sudo tee $OPENSIPS_CONFIG > /dev/null
+    # Ensure config directory exists
+    sudo mkdir -p $(dirname "$OPENSIPS_CONFIG")
+
+    # Use OpenSIPS 3.5 config templating system
+    if command -v opensips-cli >/dev/null 2>&1; then
+        echo "Generating config using OpenSIPS CLI templating"
+        sudo opensips-cli cfg generate --template basic --output "$OPENSIPS_CONFIG" \
+            --set db_url="mysql://$DB_USER:$DB_PASS@$DB_HOST:$DB_PORT/$DB_NAME" \
+            --set httpd_port=8888 \
+            --set socket="tcp:127.0.0.1:5060" \
+            --set socket="udp:127.0.0.1:5060"
+    else
+        echo "Warning: opensips-cli not found; falling back to sample config copy"
+        # Find package-provided sample config
+        SAMPLE_CONFIG=""
+        # Prefer dpkg listing if available
+        if command -v dpkg >/dev/null 2>&1; then
+            SAMPLE_CONFIG=$(dpkg -L opensips 2>/dev/null | grep -E "\.cfg$" | grep -E "(sample|example|opensips\.cfg)" | head -n1 || true)
+        fi
+        # Fallback: search common locations
+        if [[ -z "$SAMPLE_CONFIG" ]]; then
+            for p in "/usr/share/doc/opensips/examples/opensips.cfg" "/usr/share/opensips/opensips.cfg.sample" "/etc/opensips/opensips.cfg.sample" "/usr/share/opensips/opensips.cfg"; do
+                if [[ -f "$p" ]]; then
+                    SAMPLE_CONFIG="$p"
+                    break
+                fi
+            done
+        fi
+
+        if [[ -n "$SAMPLE_CONFIG" && "$SAMPLE_CONFIG" != "$OPENSIPS_CONFIG" ]]; then
+            echo "Using package sample config: $SAMPLE_CONFIG"
+            sudo cp "$SAMPLE_CONFIG" "$OPENSIPS_CONFIG"
+        else
+            echo "Using existing config or no sample found; will update in place"
+        fi
+        # Replace DB URL placeholders with our values
+        sudo sed -i "s|mysql://.*@.*:.*\/.*|mysql://$DB_USER:$DB_PASS@$DB_HOST:$DB_PORT/$DB_NAME|g" "$OPENSIPS_CONFIG"
+        # Replace MI port if present
+        sudo sed -i "s/modparam(\"httpd\", \"port\", [0-9]*)/modparam(\"httpd\", \"port\", 8888)/g" "$OPENSIPS_CONFIG"
+        # Ensure socket is set for SIP listening
+        if ! grep -q "socket=" "$OPENSIPS_CONFIG"; then
+            # Add basic socket if not present
+            sudo sed -i '1a socket=tcp:127.0.0.1:5060\nsocket=udp:127.0.0.1:5060' "$OPENSIPS_CONFIG"
+        fi
+            echo "Warning: could not find package sample config; falling back to minimal config"
+            # Minimal fallback config
+            cat << EOF | sudo tee $OPENSIPS_CONFIG > /dev/null
 ####### Global Parameters #########
 
 log_level=3
-log_stderror=no
-log_facility=LOG_LOCAL0
+stderror_enabled=no
+syslog_enabled=yes
+syslog_facility=LOG_LOCAL0
 
-children=4
 socket=tcp:127.0.0.1:5060
 socket=udp:127.0.0.1:5060
 
@@ -164,11 +260,6 @@ loadmodule "registrar.so"
 loadmodule "auth.so"
 loadmodule "auth_db.so"
 loadmodule "nathelper.so"
-loadmodule "rtpproxy.so"
-loadmodule "dispatcher.so"
-loadmodule "load_balancer.so"
-loadmodule "permissions.so"
-loadmodule "pike.so"
 loadmodule "httpd.so"
 loadmodule "mi_fifo.so"
 
@@ -186,21 +277,6 @@ modparam("auth_db", "db_url", "mysql://$DB_USER:$DB_PASS@$DB_HOST:$DB_PORT/$DB_N
 modparam("auth_db", "calculate_ha1", 1)
 modparam("auth_db", "password_column", "password")
 
-# Dispatcher
-modparam("dispatcher", "db_url", "mysql://$DB_USER:$DB_PASS@$DB_HOST:$DB_PORT/$DB_NAME")
-modparam("dispatcher", "table_name", "dispatcher")
-modparam("dispatcher", "setid_col", "setid")
-modparam("dispatcher", "destination_col", "destination")
-modparam("dispatcher", "flags_col", "flags")
-modparam("dispatcher", "priority_col", "priority")
-modparam("dispatcher", "attrs_col", "attrs")
-
-# Load balancer
-modparam("load_balancer", "db_url", "mysql://$DB_USER:$DB_PASS@$DB_HOST:$DB_PORT/$DB_NAME")
-
-# Permissions
-modparam("permissions", "db_url", "mysql://$DB_USER:$DB_PASS@$DB_HOST:$DB_PORT/$DB_NAME")
-
 # HTTPD for MI interface
 modparam("httpd", "port", 8888)
 
@@ -216,7 +292,7 @@ route {
         exit;
     }
 
-    if (msg:len >= 2048) {
+    if (len(msg) >= 2048) {
         sl_send_reply(513, "Message too big");
         exit;
     }
@@ -260,8 +336,8 @@ route {
 
 route[register] {
     # Authenticate user
-    if (!www_authorize("$td", "subscriber")) {
-        www_challenge("$td", "0");
+    if (!www_authorize("\$td", "subscriber")) {
+        www_challenge("\$td", "0");
         exit;
     }
 
@@ -296,12 +372,6 @@ route[invite] {
             sl_send_reply(404, "Not Found");
             exit;
         }
-
-        # Apply load balancing if configured
-        if (!load_balance("1", "pstn")) {
-            sl_send_reply(503, "Service Unavailable");
-            exit;
-        }
     }
 
     route(relay);
@@ -333,8 +403,17 @@ route[relay] {
     exit;
 }
 EOF
+        fi
+    fi
 
     echo "Best practice configuration created at $OPENSIPS_CONFIG"
+    # Validate configuration
+    if ! sudo opensips -c $OPENSIPS_CONFIG >/dev/null 2>&1; then
+        echo "❌ Generated OpenSIPS configuration failed validation. Run 'sudo opensips -c $OPENSIPS_CONFIG' to see errors."
+        exit 1
+    else
+        echo "OpenSIPS configuration validated successfully."
+    fi
 }
 
 # --- Fungsi setup web interface (opsional)
