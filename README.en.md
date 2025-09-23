@@ -1,6 +1,19 @@
 # Auto Installer
 
-[![GitHub](https://img.shields.io/badge/GitHub-zickkeen/auto--installer-blue)](https://github.com/zickkeen/auto-installer)
+[![GitHub]### Code Server
+```bash
+# Install with Nginx + Certbot (local)
+bash code_server-installer.sh --domain example.com --password mypass --method nginx
+
+# Install with Cloudflare Tunnel (local)
+bash code_server-installer.sh --domain example.com --password mypass --method cloudflared
+
+# Install direct without reverse proxy (not secure, for testing only)
+bash code_server-installer.sh --password mypass --method direct
+
+# Or download and run directly from GitHub
+curl -fsSL https://raw.githubusercontent.com/zickkeen/auto-installer/main/code_server-installer.sh | bash -s -- --domain example.com --password mypass --method nginx
+```/img.shields.io/badge/GitHub-zickkeen/auto--installer-blue)](https://github.com/zickkeen/auto-installer)
 
 A collection of automated installer scripts for various open-source applications and services. This project aims to simplify the installation and initial configuration of popular applications on Linux (Debian/Ubuntu and RedHat-based).
 
@@ -12,14 +25,14 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed changes [(view changes)](https://g
 
 ## 🚀 Features
 
-- **Code Server Installer**: Installs VS Code Server with a reverse proxy (Nginx + Certbot or Cloudflare Tunnel)
+- **Code Server Installer**: Installs VS Code Server with a reverse proxy (Nginx + Certbot or Cloudflare Tunnel) or direct access
 - **PostgreSQL Installer**: Installs and configures PostgreSQL with an option for initial database setup
 
 ## 📦 Available Scripts
 
 | Script | Description | OS Support |
 |--------|-----------|------------|
-| `code_server-installer.sh` | Installs Code Server with a reverse proxy | Ubuntu 22.04 |
+| `code_server-installer.sh` | Installs Code Server with a reverse proxy | Ubuntu/Debian, AlmaLinux/Rocky |
 | `postgresql-installer.sh` | Installs PostgreSQL with initial configuration | Debian/Ubuntu, RedHat-based |
 
 ## 🛠️ Usage

@@ -12,7 +12,7 @@ lihat [CHANGELOG.md](CHANGELOG.md) untuk mengetahui detail perubahannya [(change
 
 ## 🚀 Fitur
 
-- **Code Server Installer**: Instalasi VS Code Server dengan reverse proxy (Nginx + Certbot atau Cloudflare Tunnel)
+- **Code Server Installer**: Instalasi VS Code Server dengan reverse proxy (Nginx + Certbot atau Cloudflare Tunnel) atau direct access
 - **PostgreSQL Installer**: Instalasi dan konfigurasi PostgreSQL dengan opsi setup database awal
 - **OpenSIPS Installer**: Instalasi OpenSIPS SIP proxy server dengan konfigurasi best practice
 
@@ -20,7 +20,7 @@ lihat [CHANGELOG.md](CHANGELOG.md) untuk mengetahui detail perubahannya [(change
 
 | Script | Deskripsi | OS Support |
 |--------|-----------|------------|
-| `code_server-installer.sh` | Instalasi Code Server dengan reverse proxy | Ubuntu 22.04 |
+| `code_server-installer.sh` | Instalasi Code Server dengan reverse proxy | Ubuntu/Debian, AlmaLinux/Rocky |
 | `postgresql-installer.sh` | Instalasi PostgreSQL dengan konfigurasi awal | Debian/Ubuntu, RedHat-based |
 | `opensips-installer.sh` | Instalasi OpenSIPS SIP proxy dengan best practice | Debian/Ubuntu, RedHat-based |
 
@@ -33,6 +33,9 @@ bash code_server-installer.sh --domain example.com --password mypass --method ng
 
 # Instalasi dengan Cloudflare Tunnel (lokal)
 bash code_server-installer.sh --domain example.com --password mypass --method cloudflared
+
+# Instalasi direct tanpa reverse proxy (tidak aman, hanya untuk testing)
+bash code_server-installer.sh --password mypass --method direct
 
 # Atau download dan jalankan langsung dari GitHub
 curl -fsSL https://raw.githubusercontent.com/zickkeen/auto-installer/main/code_server-installer.sh | bash -s -- --domain example.com --password mypass --method nginx
