@@ -37,6 +37,10 @@ bash code_server-installer.sh --domain example.com --password mypass --method cl
 # Instalasi direct tanpa reverse proxy (tidak aman, hanya untuk testing)
 bash code_server-installer.sh --password mypass --method direct
 
+# Instalasi dengan custom port
+bash code_server-installer.sh --domain example.com --password mypass --method nginx --port 9090
+bash code_server-installer.sh --password mypass --method direct --port 3000
+
 # Atau download dan jalankan langsung dari GitHub
 curl -fsSL https://raw.githubusercontent.com/zickkeen/auto-installer/main/code_server-installer.sh | bash -s -- --domain example.com --password mypass --method nginx
 ```

@@ -119,6 +119,7 @@ CODE_VERSION="4.104.0"
 DOMAIN=""
 CODE_PASS=""
 METHOD=""
+PORT="8080"
 
 # --- Parse arguments
 while [[ "$#" -gt 0 ]]; do
@@ -126,6 +127,7 @@ while [[ "$#" -gt 0 ]]; do
     --domain) DOMAIN="$2"; shift ;;
     --password) CODE_PASS="$2"; shift ;;
     --method) METHOD="$2"; shift ;;
+    --port) PORT="$2"; shift ;;
     --uninstall) 
       uninstall_code_server
       exit 0 ;;
@@ -138,6 +140,7 @@ while [[ "$#" -gt 0 ]]; do
       echo "  --domain <domain>       Domain untuk akses code-server (wajib untuk nginx/cloudflared)"
       echo "  --password <pass>       Password untuk login (wajib)"
       echo "  --method <nginx|cloudflared|direct>  Metode reverse proxy (wajib)"
+      echo "  --port <port>           Port untuk code-server (default: 8080)"
       echo "  --uninstall             Uninstall code-server dan semua konfigurasi"
       echo "  --help                  Tampilkan panduan ini"
       echo ""
@@ -148,13 +151,14 @@ while [[ "$#" -gt 0 ]]; do
       echo ""
       echo "Contoh:"
       echo "  bash code_server-installer.sh --domain example.com --password mypass --method nginx"
+      echo "  bash code_server-installer.sh --domain example.com --password mypass --method nginx --port 9090"
       echo ""
       echo "  curl -fsSL https://domain.tld/install-code-server.sh | bash -s -- \\"
       echo "    --domain ide.domainmu.com \\"
       echo "    --password rahasiaBanget \\"
       echo "    --method cloudflared"
       echo ""
-      echo "  bash code_server-installer.sh --password mypass --method direct"
+      echo "  bash code_server-installer.sh --password mypass --method direct --port 3000"
       echo ""
       echo "Uninstall:"
       echo "  bash code_server-installer.sh --uninstall"
@@ -167,7 +171,7 @@ done
 
 if [[ -z "$CODE_PASS" || -z "$METHOD" ]]; then
   echo "❌ Usage:"
-  echo "  Install: bash code_server-installer.sh --password <pass> --method <nginx|cloudflared|direct> [--domain <domain>]"
+  echo "  Install: bash code_server-installer.sh --password <pass> --method <nginx|cloudflared|direct> [--domain <domain>] [--port <port>]"
   echo "  Uninstall: bash code_server-installer.sh --uninstall"
   echo "  Gunakan --help untuk panduan lengkap"
   exit 1
@@ -175,6 +179,12 @@ fi
 
 if [[ "$METHOD" != "direct" && -z "$DOMAIN" ]]; then
   echo "❌ Domain wajib untuk method nginx atau cloudflared"
+  exit 1
+fi
+
+# --- Validasi port
+if ! [[ "$PORT" =~ ^[0-9]+$ ]] || [ "$PORT" -lt 1 ] || [ "$PORT" -gt 65535 ]; then
+  echo "❌ Port harus berupa angka antara 1-65535"
   exit 1
 fi
 
@@ -225,11 +235,12 @@ sudo chown -R $(whoami):$(whoami) /var/lib/code-server
 
 # --- Tentukan bind address berdasarkan method
 if [[ "$METHOD" == "direct" ]]; then
-  BIND_ADDR="0.0.0.0:8080"
+  BIND_ADDR="0.0.0.0:${PORT}"
   echo "⚠️  PERINGATAN: Method 'direct' mengekspos code-server langsung tanpa reverse proxy."
   echo "   Ini tidak aman dan hanya untuk testing lokal. Pastikan firewall dikonfigurasi dengan benar."
+  echo "   Port yang digunakan: ${PORT}"
 else
-  BIND_ADDR="127.0.0.1:8080"
+  BIND_ADDR="127.0.0.1:${PORT}"
 fi
 
 # --- Buat systemd service
@@ -278,7 +289,7 @@ server {
     server_name ${DOMAIN};
 
     location / {
-        proxy_pass http://127.0.0.1:8080/;
+        proxy_pass http://127.0.0.1:${PORT}/;
         proxy_set_header Host \$host;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection upgrade;
@@ -295,7 +306,7 @@ server {
     server_name ${DOMAIN};
 
     location / {
-        proxy_pass http://127.0.0.1:8080/;
+        proxy_pass http://127.0.0.1:${PORT}/;
         proxy_set_header Host \$host;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection upgrade;
@@ -352,7 +363,7 @@ credentials-file: /root/.cloudflared/*.json
 
 ingress:
   - hostname: ${DOMAIN}
-    service: http://localhost:8080
+    service: http://localhost:${PORT}
   - service: http_status:404
 EOF
 
@@ -365,22 +376,22 @@ elif [[ "$METHOD" == "direct" ]]; then
   # Configure firewall
   if [[ "$OS" =~ ^(almalinux|rocky|rhel|centos)$ ]]; then
       if systemctl is-active --quiet firewalld; then
-          sudo firewall-cmd --permanent --add-port=8080/tcp
+          sudo firewall-cmd --permanent --add-port=${PORT}/tcp
           sudo firewall-cmd --reload
-          echo "✅ Firewall configured to allow port 8080"
+          echo "✅ Firewall configured to allow port ${PORT}"
       else
-          echo "⚠️  FirewallD tidak aktif. Pastikan port 8080 dapat diakses dari luar jika diperlukan."
+          echo "⚠️  FirewallD tidak aktif. Pastikan port ${PORT} dapat diakses dari luar jika diperlukan."
       fi
   elif [[ "$OS" =~ ^(ubuntu|debian)$ ]]; then
       if command -v ufw >/dev/null 2>&1 && ufw status | grep -q "Status: active"; then
-          sudo ufw allow 8080/tcp
-          echo "✅ UFW configured to allow port 8080"
+          sudo ufw allow ${PORT}/tcp
+          echo "✅ UFW configured to allow port ${PORT}"
       else
-          echo "⚠️  UFW tidak aktif atau tidak terinstall. Pastikan port 8080 dapat diakses dari luar jika diperlukan."
+          echo "⚠️  UFW tidak aktif atau tidak terinstall. Pastikan port ${PORT} dapat diakses dari luar jika diperlukan."
       fi
   fi
   
-  echo "✅ code-server berjalan di http://$(hostname -I | awk '{print $1}'):8080"
+  echo "✅ code-server berjalan di http://$(hostname -I | awk '{print $1}'):${PORT}"
   echo "🔐 Password: ${CODE_PASS}"
 
 else
@@ -390,7 +401,7 @@ fi
 
 echo "✅ Instalasi selesai"
 if [[ "$METHOD" == "direct" ]]; then
-  echo "🌐 Akses: http://$(hostname -I | awk '{print $1}'):8080"
+  echo "🌐 Akses: http://$(hostname -I | awk '{print $1}'):${PORT}"
 else
   echo "🌐 Akses: https://${DOMAIN}"
 fi

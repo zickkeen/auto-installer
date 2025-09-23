@@ -11,6 +11,10 @@ bash code_server-installer.sh --domain example.com --password mypass --method cl
 # Install direct without reverse proxy (not secure, for testing only)
 bash code_server-installer.sh --password mypass --method direct
 
+# Install with custom port
+bash code_server-installer.sh --domain example.com --password mypass --method nginx --port 9090
+bash code_server-installer.sh --password mypass --method direct --port 3000
+
 # Or download and run directly from GitHub
 curl -fsSL https://raw.githubusercontent.com/zickkeen/auto-installer/main/code_server-installer.sh | bash -s -- --domain example.com --password mypass --method nginx
 ```/img.shields.io/badge/GitHub-zickkeen/auto--installer-blue)](https://github.com/zickkeen/auto-installer)
