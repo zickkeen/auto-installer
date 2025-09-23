@@ -6,6 +6,114 @@ set -e
 #   Metode: Nginx+Certbot atau Cloudflare Tunnel
 # ======================================================
 
+# --- Fungsi uninstaller
+uninstall_code_server() {
+    echo "=== Uninstalling code-server ==="
+    
+    # Deteksi OS
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        OS=$ID
+    else
+        echo "❌ Cannot detect OS"
+        exit 1
+    fi
+    
+    # Stop dan disable service
+    if systemctl is-active --quiet code-server; then
+        echo "🔄 Stopping code-server service..."
+        sudo systemctl stop code-server
+    fi
+    
+    if systemctl is-enabled --quiet code-server 2>/dev/null; then
+        echo "🔄 Disabling code-server service..."
+        sudo systemctl disable code-server
+    fi
+    
+    # Remove systemd service file
+    if [ -f "/lib/systemd/system/code-server.service" ] || [ -f "/etc/systemd/system/code-server.service" ]; then
+        echo "🗑️  Removing systemd service..."
+        sudo rm -f /lib/systemd/system/code-server.service
+        sudo rm -f /etc/systemd/system/code-server.service
+        sudo systemctl daemon-reload
+    fi
+    
+    # Remove code-server binary dan folder
+    if [ -d "/usr/lib/code-server" ]; then
+        echo "🗑️  Removing code-server installation..."
+        sudo rm -rf /usr/lib/code-server
+    fi
+    
+    if [ -L "/usr/bin/code-server" ]; then
+        sudo rm -f /usr/bin/code-server
+    fi
+    
+    # Remove data directory
+    if [ -d "/var/lib/code-server" ]; then
+        echo "🗑️  Removing code-server data..."
+        sudo rm -rf /var/lib/code-server
+    fi
+    
+    # Remove nginx config
+    if [[ "$OS" =~ ^(ubuntu|debian)$ ]]; then
+        if [ -f "/etc/nginx/sites-available/code-server.conf" ]; then
+            echo "🗑️  Removing nginx configuration..."
+            sudo rm -f /etc/nginx/sites-available/code-server.conf
+            sudo rm -f /etc/nginx/sites-enabled/code-server.conf
+            if systemctl is-active --quiet nginx; then
+                sudo systemctl reload nginx
+            fi
+        fi
+    else
+        if [ -f "/etc/nginx/conf.d/code-server.conf" ]; then
+            echo "🗑️  Removing nginx configuration..."
+            sudo rm -f /etc/nginx/conf.d/code-server.conf
+            if systemctl is-active --quiet nginx; then
+                sudo systemctl reload nginx
+            fi
+        fi
+    fi
+    
+    # Remove cloudflared config
+    if [ -f "/etc/cloudflared/config.yml" ]; then
+        echo "🗑️  Removing cloudflared configuration..."
+        if systemctl is-active --quiet cloudflared; then
+            sudo systemctl stop cloudflared
+        fi
+        if systemctl is-enabled --quiet cloudflared 2>/dev/null; then
+            sudo systemctl disable cloudflared
+        fi
+        sudo rm -f /etc/cloudflared/config.yml
+    fi
+    
+    # Clean temporary files
+    rm -rf ~/code-server 2>/dev/null
+    
+    echo "✅ code-server berhasil di-uninstall!"
+    echo "📝 Catatan: Nginx, Certbot, dan Cloudflared tidak dihapus (mungkin digunakan aplikasi lain)"
+}
+
+# --- Fungsi pengecekan instalasi existing
+check_existing_installation() {
+    if systemctl list-unit-files | grep -q "code-server.service" || 
+       [ -f "/lib/systemd/system/code-server.service" ] || 
+       [ -f "/etc/systemd/system/code-server.service" ] ||
+       [ -d "/usr/lib/code-server" ] || 
+       [ -L "/usr/bin/code-server" ]; then
+        echo "⚠️  Ditemukan instalasi code-server yang sudah ada!"
+        echo ""
+        read -p "Apakah Anda ingin menghapus instalasi lama? (y/N): " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            uninstall_code_server
+            echo ""
+        else
+            echo "❌ Instalasi dibatalkan. Gunakan --uninstall untuk menghapus instalasi lama."
+            exit 1
+        fi
+    fi
+}
+
 # --- Default config
 CODE_VERSION="4.104.0"
 DOMAIN=""
@@ -18,6 +126,9 @@ while [[ "$#" -gt 0 ]]; do
     --domain) DOMAIN="$2"; shift ;;
     --password) CODE_PASS="$2"; shift ;;
     --method) METHOD="$2"; shift ;;
+    --uninstall) 
+      uninstall_code_server
+      exit 0 ;;
     --help) 
       echo "code-server installer (Ubuntu/Debian & AlmaLinux/Rocky)"
       echo ""
@@ -27,6 +138,7 @@ while [[ "$#" -gt 0 ]]; do
       echo "  --domain <domain>       Domain untuk akses code-server (wajib untuk nginx/cloudflared)"
       echo "  --password <pass>       Password untuk login (wajib)"
       echo "  --method <nginx|cloudflared|direct>  Metode reverse proxy (wajib)"
+      echo "  --uninstall             Uninstall code-server dan semua konfigurasi"
       echo "  --help                  Tampilkan panduan ini"
       echo ""
       echo "Metode:"
@@ -44,6 +156,9 @@ while [[ "$#" -gt 0 ]]; do
       echo ""
       echo "  bash code_server-installer.sh --password mypass --method direct"
       echo ""
+      echo "Uninstall:"
+      echo "  bash code_server-installer.sh --uninstall"
+      echo ""
       exit 0 ;;
     *) echo "Argumen tidak dikenali: $1" && exit 1 ;;
   esac
@@ -52,7 +167,8 @@ done
 
 if [[ -z "$CODE_PASS" || -z "$METHOD" ]]; then
   echo "❌ Usage:"
-  echo "  bash code_server-installer.sh --password <pass> --method <nginx|cloudflared|direct> [--domain <domain>]"
+  echo "  Install: bash code_server-installer.sh --password <pass> --method <nginx|cloudflared|direct> [--domain <domain>]"
+  echo "  Uninstall: bash code_server-installer.sh --uninstall"
   echo "  Gunakan --help untuk panduan lengkap"
   exit 1
 fi
@@ -61,6 +177,9 @@ if [[ "$METHOD" != "direct" && -z "$DOMAIN" ]]; then
   echo "❌ Domain wajib untuk method nginx atau cloudflared"
   exit 1
 fi
+
+# --- Cek instalasi existing
+check_existing_installation
 
 echo "=== Install code-server v$CODE_VERSION ==="
 
