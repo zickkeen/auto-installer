@@ -154,9 +154,6 @@ if [[ "$METHOD" == "nginx" ]]; then
 
   if [[ "$OS" =~ ^(ubuntu|debian)$ ]]; then
       sudo tee /etc/nginx/sites-available/code-server.conf >/dev/null <<EOF
-  else
-      sudo tee /etc/nginx/conf.d/code-server.conf >/dev/null <<EOF
-  fi
 server {
     listen 80;
     server_name ${DOMAIN};
@@ -172,6 +169,24 @@ server {
     }
 }
 EOF
+  else
+      sudo tee /etc/nginx/conf.d/code-server.conf >/dev/null <<EOF
+server {
+    listen 80;
+    server_name ${DOMAIN};
+
+    location / {
+        proxy_pass http://127.0.0.1:8080/;
+        proxy_set_header Host \$host;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection upgrade;
+        proxy_set_header Accept-Encoding gzip;
+        proxy_set_header Accept-Language en;
+        proxy_set_header X-Forwarded-For \$remote_addr;
+    }
+}
+EOF
+  fi
 
   if [[ "$OS" =~ ^(ubuntu|debian)$ ]]; then
       sudo ln -sf /etc/nginx/sites-available/code-server.conf /etc/nginx/sites-enabled/
