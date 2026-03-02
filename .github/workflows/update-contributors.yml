@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -23,43 +23,60 @@ jobs:
 
       - name: Update Contributors
         run: |
-          # 1. Ambil data kontributor (jq biasanya sudah terinstall di runner ubuntu)
+          # 1. Ambil data kontributor
           REPO="${{ github.repository }}"
           TOKEN="${{ secrets.GITHUB_TOKEN }}"
-          
           CONTRIBUTORS=$(curl -s -H "Authorization: token $TOKEN" \
             "https://api.github.com/repos/$REPO/contributors")
 
-          # 2. Generate list kontributor dalam format Markdown
-          # Menggunakan printf untuk menangani karakter newline dengan benar
-          CONTRIBUTORS_MD=$(echo "$CONTRIBUTORS" | jq -r '.[] | "- [![" + .login + "](" + .avatar_url + "&s=50)](" + .html_url + ") **" + .login + "** - " + (.contributions | tostring) + " contributions"')
+          # 2. Format menjadi Markdown & Encode ke Base64 (agar aman dilempar ke Python)
+          CONTRIBUTORS_MD=$(echo "$CONTRIBUTORS" | jq -r '.[] | "- [![" + .login + "](" + .avatar_url + "&s=50)](" + .html_url + ") **" + .login + "** - " + (.contributions | tostring) + " contributions"' | base64 -w 0)
 
-          # 3. Masukkan ke README.md
-          # Kita gunakan perl karena lebih handal menangani penggantian blok teks multiline
-          if [ -n "$CONTRIBUTORS_MD" ]; then
-            echo "Updating README..."
-            
-            # Gunakan penanda khusus agar tidak salah hapus
-            START_MARKER=""
-            END_MARKER=""
-            
-            # Gabungkan penanda dengan list kontributor
-            NEW_CONTENT="$START_MARKER\n$CONTRIBUTORS_MD\n$END_MARKER"
-            
-            # Update file menggunakan perl (mencari blok dari START sampai END dan menggantinya)
-            perl -i -0777 -pe "s/$START_MARKER.*?$END_MARKER/$NEW_CONTENT/s" README.md
+          if [ -z "$CONTRIBUTORS_MD" ]; then
+            echo "No contributors found."
+            exit 0
+          fi
 
-            # 4. Setup Git & Push
-            git config --local user.email "github-actions[bot]@users.noreply.github.com"
-            git config --local user.name "github-actions[bot]"
-            
-            git add README.md
-            if git commit -m "docs: update contributors list"; then
-              git push
-            else
-              echo "No changes detected in README.md"
-            fi
+          # 3. Jalankan Python untuk update semua file README
+          export CONTRIBUTORS_MD
+          python3 -c "
+import os
+import re
+import base64
+
+# Ambil data dari environment
+md_content = base64.b64decode(os.environ['CONTRIBUTORS_MD']).decode('utf-8')
+files = ['README.md', 'Readme.en.md']
+
+start_marker = ''
+end_marker = ''
+replacement = f'{start_marker}\n{md_content}\n{end_marker}'
+pattern = re.compile(rf'{start_marker}.*?{end_marker}', re.DOTALL)
+
+for file_path in files:
+    if not os.path.exists(file_path):
+        print(f'File {file_path} tidak ditemukan, skip.')
+        continue
+        
+    with open(file_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+    
+    if start_marker in content:
+        new_content = re.sub(pattern, replacement, content)
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(new_content)
+        print(f'Berhasil update {file_path}')
+    else:
+        print(f'Marker tidak ditemukan di {file_path}. Tambahkan marker manual!')
+"
+
+          # 4. Git Commit & Push
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          git add README.md Readme.en.md
+          if git commit -m "docs: update contributors list in all READMEs"; then
+            git push
           else
-            echo "No contributors found or API error."
-            exit 1
+            echo "No changes to commit"
           fi
