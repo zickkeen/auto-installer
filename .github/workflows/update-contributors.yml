@@ -19,49 +19,47 @@ jobs:
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
 
       - name: Update Contributors
         run: |
-          # Install jq untuk parsing JSON
-          sudo apt-get update && sudo apt-get install -y jq
-
-          # Fetch contributors dari GitHub API
-          TOKEN="${{ secrets.GITHUB_TOKEN }}"
+          # 1. Ambil data kontributor (jq biasanya sudah terinstall di runner ubuntu)
           REPO="${{ github.repository }}"
+          TOKEN="${{ secrets.GITHUB_TOKEN }}"
+          
           CONTRIBUTORS=$(curl -s -H "Authorization: token $TOKEN" \
             "https://api.github.com/repos/$REPO/contributors")
 
-          # Generate markdown untuk contributors
-          CONTRIBUTORS_MD=""
-          for row in $(echo "$CONTRIBUTORS" | jq -r '.[] | @base64'); do
-            _jq() {
-              echo ${row} | base64 --decode | jq -r ${1}
-            }
-            LOGIN=$(_jq '.login')
-            AVATAR_URL=$(_jq '.avatar_url')
-            HTML_URL=$(_jq '.html_url')
-            CONTRIBUTIONS=$(_jq '.contributions')
+          # 2. Generate list kontributor dalam format Markdown
+          # Menggunakan printf untuk menangani karakter newline dengan benar
+          CONTRIBUTORS_MD=$(echo "$CONTRIBUTORS" | jq -r '.[] | "- [![" + .login + "](" + .avatar_url + "&s=50)](" + .html_url + ") **" + .login + "** - " + (.contributions | tostring) + " contributions"')
 
-            LINE="- [![${LOGIN}](${AVATAR_URL}&s=50)](${HTML_URL}) **${LOGIN}** - ${CONTRIBUTIONS} contributions"
-            CONTRIBUTORS_MD="${CONTRIBUTORS_MD}${LINE}\n"
-          done
-
-          # Update README.md jika ada contributors
+          # 3. Masukkan ke README.md
+          # Kita gunakan perl karena lebih handal menangani penggantian blok teks multiline
           if [ -n "$CONTRIBUTORS_MD" ]; then
-            # Update README menggunakan sed atau awk
-            # Note: Gunakan perl atau sed yang lebih stabil untuk multiline
-            sed -i '//,//{//!d}' README.md
-            sed -i "//a $(echo $CONTRIBUTORS_MD)" README.md
+            echo "Updating README..."
+            
+            # Gunakan penanda khusus agar tidak salah hapus
+            START_MARKER=""
+            END_MARKER=""
+            
+            # Gabungkan penanda dengan list kontributor
+            NEW_CONTENT="$START_MARKER\n$CONTRIBUTORS_MD\n$END_MARKER"
+            
+            # Update file menggunakan perl (mencari blok dari START sampai END dan menggantinya)
+            perl -i -0777 -pe "s/$START_MARKER.*?$END_MARKER/$NEW_CONTENT/s" README.md
 
-            # Konfigurasi Git
+            # 4. Setup Git & Push
             git config --local user.email "github-actions[bot]@users.noreply.github.com"
             git config --local user.name "github-actions[bot]"
             
             git add README.md
             if git commit -m "docs: update contributors list"; then
-              # Push menggunakan remote yang sudah terkonfigurasi otomatis oleh checkout@v4
               git push
             else
-              echo "No changes to commit"
+              echo "No changes detected in README.md"
             fi
+          else
+            echo "No contributors found or API error."
+            exit 1
           fi
