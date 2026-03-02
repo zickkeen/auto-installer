@@ -98,8 +98,7 @@ This project is open-source and contributions are welcome\! We appreciate contri
 
 Thank you to everyone who has contributed:
 
-  - **Zick Keen** - Creator and main maintainer
-    If you'd like to be added to this list, please make a contribution and let us know\!
+If you'd like to be added to this list, please make a contribution and let us know!
 
 ## 💰 Support
 
