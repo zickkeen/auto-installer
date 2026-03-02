@@ -11,7 +11,9 @@ on:
 jobs:
   update-contributors:
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: write
+      
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -31,42 +33,35 @@ jobs:
 
           # Generate markdown untuk contributors
           CONTRIBUTORS_MD=""
-          for contributor in $(echo "$CONTRIBUTORS" | jq -r '.[] | @base64'); do
+          for row in $(echo "$CONTRIBUTORS" | jq -r '.[] | @base64'); do
             _jq() {
-              echo ${contributor} | base64 --decode | jq -r ${1}
+              echo ${row} | base64 --decode | jq -r ${1}
             }
-
             LOGIN=$(_jq '.login')
             AVATAR_URL=$(_jq '.avatar_url')
             HTML_URL=$(_jq '.html_url')
             CONTRIBUTIONS=$(_jq '.contributions')
 
-            LINE="- [![${LOGIN}](${AVATAR_URL}&s=50)](${HTML_URL})"
-            LINE="${LINE} **${LOGIN}** - ${CONTRIBUTIONS} contributions"
-            CONTRIBUTORS_MD="${CONTRIBUTORS_MD}\n${LINE}"
+            LINE="- [![${LOGIN}](${AVATAR_URL}&s=50)](${HTML_URL}) **${LOGIN}** - ${CONTRIBUTIONS} contributions"
+            CONTRIBUTORS_MD="${CONTRIBUTORS_MD}${LINE}\n"
           done
 
           # Update README.md jika ada contributors
           if [ -n "$CONTRIBUTORS_MD" ]; then
-            # Backup README
-            cp README.md README.md.backup
+            # Update README menggunakan sed atau awk
+            # Note: Gunakan perl atau sed yang lebih stabil untuk multiline
+            sed -i '//,//{//!d}' README.md
+            sed -i "//a $(echo $CONTRIBUTORS_MD)" README.md
 
-            # Ganti bagian antara marker
-            awk '
-            /<!-- CONTRIBUTORS:START -->/ { print; in_block=1; next }
-            /<!-- CONTRIBUTORS:END -->/ {
-              print "'"$CONTRIBUTORS_MD"'"
-              print; in_block=0; next
-            }
-            !in_block { print }
-            ' README.md > README.md.tmp && mv README.md.tmp README.md
-
-            # Commit jika ada perubahan
-            if ! git diff --quiet README.md; then
-              git config --local user.email "action@github.com"
-              git config --local user.name "GitHub Action"
-              git add README.md
-              git commit -m "docs: update contributors list"
+            # Konfigurasi Git
+            git config --local user.email "github-actions[bot]@users.noreply.github.com"
+            git config --local user.name "github-actions[bot]"
+            
+            git add README.md
+            if git commit -m "docs: update contributors list"; then
+              # Push menggunakan remote yang sudah terkonfigurasi otomatis oleh checkout@v4
               git push
+            else
+              echo "No changes to commit"
             fi
           fi
